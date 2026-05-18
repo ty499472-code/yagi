@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GymBuddy</title>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, onSnapshot, orderBy, query,
+  doc, setDoc, getDoc, updateDoc, getDocs, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// Storage不使用 - Base64でFirestoreに保存
+
+const firebaseConfig = {
+  apiKey: "AIzaSyABUahKOYoRsGiXNbNhvo4YCoTE5PUjGLM",
+  authDomain: "yagi-5f9cb.firebaseapp.com",
+  projectId: "yagi-5f9cb",
+  storageBucket: "yagi-5f9cb.firebasestorage.app",
+  messagingSenderId: "949627686283",
+  appId: "1:949627686283:web:e8a9d500111d1ff6e3f38e"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+// 画像をBase64(JPEG圧縮)に変換
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        const MAX = 600;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ====== DEVICE ======
+let DEV = localStorage.getItem("gymbuddy_device");
+if (!DEV) {
+  document.getElementById("device-picker").style.display = "flex";
+} else {
+  boot();
+}
+
+window.pickDevice = d => {
+  localStorage.setItem("gymbuddy_device", d);
+  DEV = d;
+  document.getElementById("device-picker").style.display = "none";
+  boot();
+};
+
+// ====== UTILS ======
+const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const fmt = d => d ? d.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}) : "";
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a; };
+
+function boot() {
+  document.getElementById("app").style.display = "flex";
+  const badge = document.getElementById("dev-badge");
+  badge.textContent = "デバイス " + DEV;
+  badge.className = "dev-badge dev-" + DEV.toLowerCase();
+  initChat();
+  showTab("chat");
+}
+
+// ====== TABS ======
+window.showTab = tab => {
+  document.querySelectorAll(".panel").forEach(p => p.style.display = "none");
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-" + tab).style.display = "flex";
+  document.querySelector(`[data-tab="${tab}"]`).classList.add("active");
+  if (tab === "photos") loadPhotos();
+  if (tab === "tournament") renderBracket();
+};
+
+// ====== CHAT ======
+function initChat() {
+  const q = query(collection(db,"messages"), orderBy("at"));
+  onSnapshot(q, snap => {
+    const box = document.getElementById("msgs");
+    box.innerHTML = "";
+    snap.forEach(d => {
+      const m = d.data();
+      const mine = m.dev === DEV;
+      const el = document.createElement("div");
+      el.className = "msg " + (mine ? "mine" : "theirs");
+      el.innerHTML = `<div class="msg-who">デバイス ${esc(m.dev)}</div>
+        <div class="msg-bub">${esc(m.text)}</div>
+        <div class="msg-time">${fmt(m.at?.toDate())}</div>`;
+      box.appendChild(el);
+    });
+    box.scrollTop = box.scrollHeight;
+  });
+}
+
+window.sendMsg = async () => {
+  const inp = document.getElementById("chat-inp");
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = "";
+  await addDoc(collection(db,"messages"), { text, dev: DEV, at: serverTimestamp() });
+};
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && document.activeElement.id === "chat-inp" && !e.shiftKey) {
+    e.preventDefault(); window.sendMsg();
+  }
+});
+
+// ====== PHOTOS ======
+window.uploadPhoto = async () => {
+  const nm = document.getElementById("p-name").value.trim();
+  const fi = document.getElementById("p-file").files[0];
+  if (!nm || !fi) { alert("名前とファイルを選んでください"); return; }
+  const btn = document.getElementById("up-btn");
+  btn.textContent = "変換中…"; btn.disabled = true;
+  try {
+    const url = await fileToBase64(fi);
+    await addDoc(collection(db,"photos"), { name: nm, url, at: serverTimestamp() });
+    document.getElementById("p-name").value = "";
+    document.getElementById("p-file").value = "";
+    loadPhotos();
+  } catch(e) { alert("エラー: " + e.message); }
+  btn.textContent = "登録する"; btn.disabled = false;
+};
+
+window.loadPhotos = async () => {
+  const snap = await getDocs(collection(db,"photos"));
+  const list = document.getElementById("photo-list");
+  list.innerHTML = "";
+  snap.forEach(d => {
+    const p = d.data();
+    const c = document.createElement("div");
+    c.className = "p-card";
+    c.innerHTML = `<img src="${p.url}" class="p-thumb"><div class="p-name">${esc(p.name)}</div>`;
+    list.appendChild(c);
+  });
+};
+
+// ====== TOURNAMENT ======
+window.generateTournament = async () => {
+  const snap = await getDocs(collection(db,"photos"));
+  let photos = [];
+  snap.forEach(d => photos.push({ id: d.id, ...d.data() }));
+  if (photos.length < 2) { alert("写真が2枚以上必要です"); return; }
+  shuffle(photos);
+  const pairs = [];
+  for (let i = 0; i+1 < photos.length; i += 2) pairs.push([photos[i].id, photos[i+1].id]);
+  const pm = photos.reduce((a,p) => { a[p.id]=p; return a; }, {});
+  await setDoc(doc(db,"tournament","current"), { pairs, pm, scores: {}, at: serverTimestamp() });
+  renderBracket();
+};
+
+window.renderBracket = async () => {
+  const el = document.getElementById("bracket");
+  const snap = await getDoc(doc(db,"tournament","current"));
+  if (!snap.exists()) { el.innerHTML = `<p class="empty">まずトーナメントを生成してください</p>`; return; }
+  const t = snap.data();
+  el.innerHTML = "";
+  t.pairs.forEach((pair, pi) => {
+    const pA = t.pm[pair[0]], pB = t.pm[pair[1]];
+    if (!pA || !pB) return;
+    const sA = calcAvg(t.scores, pair[0]);
+    const sB = calcAvg(t.scores, pair[1]);
+    const done = sA && sB;
+    const myKey = `${pair[0]}_${pair[1]}_${DEV}`;
+    const voted = t.scores[myKey] !== undefined;
+    const card = document.createElement("div");
+    card.className = "m-card";
+    card.innerHTML = `
+      <div class="m-label">MATCH ${pi+1}</div>
+      <div class="m-row">
+        <div class="m-side ${done && sA.total > sB.total ? 'win' : ''}">
+          <img src="${pA.url}" class="m-img">
+          <div class="m-name">${esc(pA.name)}</div>
+          ${done ? `<div class="m-score">${sA.total.toFixed(1)}<span>点</span></div>` : ""}
+        </div>
+        <div class="m-vs">VS</div>
+        <div class="m-side ${done && sB.total > sA.total ? 'win' : ''}">
+          <img src="${pB.url}" class="m-img">
+          <div class="m-name">${esc(pB.name)}</div>
+          ${done ? `<div class="m-score">${sB.total.toFixed(1)}<span>点</span></div>` : ""}
+        </div>
+      </div>
+      ${done ? banner(sA,sB,pA.name,pB.name) : ""}
+      <div class="m-foot">
+        <div class="dots">
+          <span class="dot ${hasVote(t.scores,pair[0],pair[1],'A') ? 'on' : ''}">A</span>
+          <span class="dot ${hasVote(t.scores,pair[0],pair[1],'B') ? 'on' : ''}">B</span>
+          <span class="dot-lbl">${done ? "採点完了" : "採点待ち"}</span>
+        </div>
+        <div class="m-btns">
+          <button class="btn-sm ${voted ? 'voted' : ''}" onclick="openScoring('${pair[0]}','${pair[1]}',${pi})">${voted ? "再採点" : "採点する"}</button>
+          ${done ? `<button class="btn-sm chart" onclick="openChart('${pair[0]}','${pair[1]}')">グラフ</button>` : ""}
+        </div>
+      </div>`;
+    el.appendChild(card);
+  });
+};
+
+function hasVote(scores, a, b, dev) { return scores[`${a}_${b}_${dev}`] !== undefined; }
+
+function calcAvg(scores, pid) {
+  const cats = ["contour","nose","eyes","mouth","balance"];
+  const keys = Object.keys(scores).filter(k => k.startsWith(pid + "_"));
+  if (!keys.length) return null;
+  const avgs = cats.map(c => {
+    const vals = keys.map(k => scores[k]?.[c] || 0);
+    return vals.reduce((a,b)=>a+b,0) / vals.length;
+  });
+  return { avgs, total: avgs.reduce((a,b)=>a+b,0) / avgs.length * 10, labels:["輪郭","鼻","目","口","全体バランス"] };
+}
+
+function banner(sA,sB,nA,nB) {
+  if (Math.abs(sA.total-sB.total)<0.01) return `<div class="banner draw">引き分け</div>`;
+  return `<div class="banner win">🏆 ${esc(sA.total>sB.total?nA:nB)} の勝利！</div>`;
+}
+
+// ====== SCORING ======
+let _pair = null;
+window.openScoring = async (a, b, pi) => {
+  _pair = { a, b, pi };
+  const snap = await getDoc(doc(db,"tournament","current"));
+  const t = snap.data();
+  const pA = t.pm[a], pB = t.pm[b];
+  document.getElementById("sc-a").innerHTML = `<img src="${pA.url}" class="sc-img"><span>${esc(pA.name)}</span>`;
+  document.getElementById("sc-b").innerHTML = `<img src="${pB.url}" class="sc-img"><span>${esc(pB.name)}</span>`;
+  document.getElementById("sc-dev").textContent = DEV;
+  selectSide("a");
+  const cats = ["contour","nose","eyes","mouth","balance"];
+  cats.forEach(c => { document.getElementById("sl-"+c).value=5; document.getElementById("sv-"+c).textContent=5; });
+  document.getElementById("sc-modal").style.display = "flex";
+};
+
+window.selectSide = side => {
+  document.getElementById("sc-btn-a").classList.toggle("sel", side==="a");
+  document.getElementById("sc-btn-b").classList.toggle("sel", side==="b");
+  document.getElementById("sc-side").value = side;
+};
+
+window.submitScore = async () => {
+  if (!_pair) return;
+  const side = document.getElementById("sc-side").value;
+  const tid  = side==="a" ? _pair.a : _pair.b;
+  const oid  = side==="a" ? _pair.b : _pair.a;
+  const cats = ["contour","nose","eyes","mouth","balance"];
+  const score = {};
+  cats.forEach(c => score[c] = parseInt(document.getElementById("sl-"+c).value));
+  const tRef = doc(db,"tournament","current");
+  const td   = (await getDoc(tRef)).data();
+  td.scores[`${tid}_${oid}_${DEV}`] = score;
+  await updateDoc(tRef, { scores: td.scores });
+  document.getElementById("sc-modal").style.display = "none";
+  renderBracket();
+};
+
+window.closeScoring = () => document.getElementById("sc-modal").style.display = "none";
+
+// ====== CHART ======
+window.openChart = async (a, b) => {
+  const snap = await getDoc(doc(db,"tournament","current"));
+  const t = snap.data();
+  const sA = calcAvg(t.scores,a), sB = calcAvg(t.scores,b);
+  const pA = t.pm[a], pB = t.pm[b];
+  if (!sA||!sB) { alert("両方の採点が必要です"); return; }
+  document.getElementById("ch-modal").style.display = "flex";
+  drawCharts(sA,pA.name,sB,pB.name);
+};
+
+function drawCharts(sA,nA,sB,nB) {
+  const con = document.getElementById("ch-con");
+  con.innerHTML = "";
+  [[sA,nA],[sB,nB]].forEach(([s,name]) => {
+    const w = document.createElement("div"); w.className = "ch-wrap";
+    const title = document.createElement("div"); title.className = "ch-name";
+    title.innerHTML = `${esc(name)}<br><span class="ch-total">${s.total.toFixed(1)}点</span>`;
+    const cv = document.createElement("canvas"); cv.width=200; cv.height=200;
+    const leg = document.createElement("div"); leg.className = "ch-leg";
+    w.appendChild(title); w.appendChild(cv); w.appendChild(leg); con.appendChild(w);
+    const colors = ["#5DCAA5","#7F77DD","#F0997B","#D4537E","#85B7EB"];
+    const total = s.avgs.reduce((a,b)=>a+b,0);
+    const ctx = cv.getContext("2d");
+    let ang = -Math.PI/2;
+    s.avgs.forEach((v,i) => {
+      const sl = (v/total)*Math.PI*2;
+      ctx.beginPath(); ctx.moveTo(100,100); ctx.arc(100,100,92,ang,ang+sl); ctx.closePath();
+      ctx.fillStyle=colors[i]; ctx.fill();
+      const mid=ang+sl/2;
+      ctx.fillStyle="#fff"; ctx.font="bold 11px sans-serif";
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(v.toFixed(1), 100+58*Math.cos(mid), 100+58*Math.sin(mid));
+      ang+=sl;
+      const li=document.createElement("div"); li.className="leg-item";
+      li.innerHTML=`<span class="leg-dot" style="background:${colors[i]}"></span>${s.labels[i]}: ${v.toFixed(1)}`;
+      leg.appendChild(li);
+    });
+  });
+}
+
+window.closeChart = () => document.getElementById("ch-modal").style.display = "none";
+
+// slider live update
+document.addEventListener("input", e => {
+  if (e.target.id?.startsWith("sl-"))
+    document.getElementById("sv-"+e.target.id.slice(3)).textContent = e.target.value;
+});
+</script>
+
+<style>
+:root{
+  --bg:#0c0e11;--bg2:#141820;--bg3:#1c2230;--bg4:#242c3a;
+  --c1:#5DCAA5;--c2:#7F77DD;
+  --text:#dde2ea;--muted:#6b7685;
+  --border:rgba(255,255,255,0.07);--r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Helvetica,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* DEVICE PICKER */
+#device-picker{
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  min-height:100vh;gap:2rem;
+}
+.dp-logo{font-size:2.5rem;font-weight:800;letter-spacing:-1px}
+.dp-logo span{color:var(--c1)}
+.dp-sub{font-size:.95rem;color:var(--muted);text-align:center;max-width:280px;line-height:1.65}
+.dp-row{display:flex;gap:16px}
+.dp-btn{
+  width:110px;height:110px;border-radius:16px;border:2px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:2rem;font-weight:800;
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  transition:all .2s;
+}
+.dp-btn span{font-size:.72rem;font-weight:400;color:var(--muted)}
+.dp-btn:hover{border-color:var(--c1);background:rgba(93,202,165,.1);color:var(--c1)}
+.dp-btn.b:hover{border-color:var(--c2);background:rgba(127,119,221,.1);color:var(--c2)}
+.dp-note{font-size:.78rem;color:var(--muted)}
+
+/* APP */
+#app{display:none;flex-direction:column;height:100vh}
+
+/* HEADER */
+.header{
+  display:flex;align-items:center;gap:12px;padding:12px 18px;
+  background:var(--bg2);border-bottom:1px solid var(--border);
+}
+.logo{font-size:1.2rem;font-weight:800;flex:1;letter-spacing:-.5px}
+.logo span{color:var(--c1)}
+.dev-badge{font-size:.78rem;font-weight:700;padding:4px 12px;border-radius:20px}
+.dev-a{background:rgba(93,202,165,.15);color:var(--c1);border:1px solid rgba(93,202,165,.3)}
+.dev-b{background:rgba(127,119,221,.15);color:var(--c2);border:1px solid rgba(127,119,221,.3)}
+
+/* TABS */
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 14px}
+.tab-btn{
+  padding:11px 18px;background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--muted);font-size:.88rem;cursor:pointer;white-space:nowrap;transition:all .2s;
+}
+.tab-btn.active{color:var(--c1);border-bottom-color:var(--c1)}
+.tab-btn:hover:not(.active){color:var(--text)}
+
+.panel{flex:1;overflow-y:auto;flex-direction:column;display:none;gap:16px;padding:18px}
+
+/* CHAT */
+#tab-chat{padding:0;gap:0}
+#msgs{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+.msg{display:flex;flex-direction:column;max-width:72%}
+.msg.mine{align-self:flex-end;align-items:flex-end}
+.msg.theirs{align-self:flex-start;align-items:flex-start}
+.msg-who{font-size:.7rem;color:var(--muted);margin-bottom:3px}
+.msg-bub{padding:9px 14px;border-radius:18px;font-size:.92rem;line-height:1.55;word-break:break-word}
+.msg.mine  .msg-bub{background:var(--c1);color:#071a11;border-bottom-right-radius:4px}
+.msg.theirs .msg-bub{background:var(--bg3);border-bottom-left-radius:4px}
+.msg-time{font-size:.68rem;color:var(--muted);margin-top:3px}
+.chat-foot{
+  display:flex;gap:10px;padding:12px 18px;
+  background:var(--bg2);border-top:1px solid var(--border);
+}
+.chat-foot input{
+  flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:24px;
+  padding:10px 16px;color:var(--text);font-size:.92rem;outline:none;
+}
+.chat-foot input:focus{border-color:var(--c1)}
+.btn-send{
+  background:var(--c1);color:#000;border:none;border-radius:24px;
+  padding:10px 20px;font-size:.88rem;font-weight:700;cursor:pointer;flex-shrink:0;
+}
+.btn-send:hover{opacity:.85}
+
+/* PHOTOS */
+.sec-title{font-size:1rem;font-weight:700;margin-bottom:2px}
+.sec-sub{font-size:.82rem;color:var(--muted);margin-bottom:12px}
+.up-box{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:10px}
+.up-box input{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:.9rem;outline:none;width:100%}
+.up-box input:focus{border-color:var(--c1)}
+.btn-prim{background:var(--c1);color:#000;border:none;border-radius:8px;padding:9px 20px;font-weight:700;font-size:.9rem;cursor:pointer;align-self:flex-start}
+.btn-prim:disabled{opacity:.5;cursor:not-allowed}
+#photo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:8px}
+.p-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.p-thumb{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.p-name{padding:7px 8px;font-size:.78rem;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* TOURNAMENT */
+.t-act{display:flex;gap:10px;flex-wrap:wrap}
+.btn-sec{background:none;border:1px solid var(--border);color:var(--text);padding:9px 18px;border-radius:8px;font-size:.88rem;cursor:pointer}
+.btn-sec:hover{border-color:var(--c1);color:var(--c1)}
+.empty{color:var(--muted);font-size:.9rem;padding:8px 0}
+#bracket{display:flex;flex-direction:column;gap:14px}
+
+.m-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.m-label{font-size:.68rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px}
+.m-row{display:flex;align-items:center;gap:12px}
+.m-side{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;border-radius:10px;padding:10px;border:2px solid transparent;transition:all .2s}
+.m-side.win{border-color:var(--c1);background:rgba(93,202,165,.07)}
+.m-img{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--border)}
+.m-name{font-size:.82rem;font-weight:600;text-align:center}
+.m-score{font-size:1.4rem;font-weight:800;color:var(--c1)}
+.m-score span{font-size:.78rem;font-weight:400;color:var(--muted)}
+.m-vs{font-size:.78rem;font-weight:800;color:var(--muted);flex-shrink:0}
+.banner{margin-top:12px;padding:8px 12px;border-radius:8px;text-align:center;font-size:.9rem;font-weight:700}
+.banner.win{background:rgba(93,202,165,.15);color:var(--c1)}
+.banner.draw{background:rgba(107,118,133,.15);color:var(--muted)}
+.m-foot{display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px}
+.dots{display:flex;align-items:center;gap:7px}
+.dot{width:24px;height:24px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:var(--muted)}
+.dot.on{background:var(--c1);color:#000}
+.dot-lbl{font-size:.78rem;color:var(--muted)}
+.m-btns{display:flex;gap:8px}
+.btn-sm{background:none;border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:8px;font-size:.8rem;cursor:pointer;transition:all .2s}
+.btn-sm:hover{border-color:var(--c1);color:var(--c1)}
+.btn-sm.voted{border-color:rgba(93,202,165,.4);color:var(--c1)}
+.btn-sm.chart{border-color:rgba(127,119,221,.4);color:var(--c2)}
+.btn-sm.chart:hover{background:rgba(127,119,221,.1)}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
+.mbox{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:22px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto}
+.mhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.mtitle{font-size:1rem;font-weight:700}
+.mclose{background:none;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;line-height:1}
+
+.sc-row{display:flex;gap:10px;margin-bottom:16px}
+.sc-btn{flex:1;background:var(--bg3);border:2px solid var(--border);border-radius:10px;padding:10px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text);font-size:.85rem;font-weight:600;transition:border-color .2s}
+.sc-btn.sel{border-color:var(--c1)}
+.sc-img{width:38px;height:38px;object-fit:cover;border-radius:6px;flex-shrink:0}
+.sl-row{margin-bottom:12px}
+.sl-lbl{display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:5px}
+.sl-lbl strong{color:var(--c1);font-size:.95rem}
+input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
+.btn-sub{width:100%;background:var(--c1);color:#000;border:none;border-radius:10px;padding:11px;font-size:.95rem;font-weight:700;cursor:pointer;margin-top:8px}
+.btn-sub:hover{opacity:.85}
+
+/* CHART */
+#ch-con{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;padding:4px 0}
+.ch-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+.ch-name{font-size:.9rem;font-weight:600;text-align:center}
+.ch-total{font-size:1.4rem;font-weight:800;color:var(--c1)}
+.ch-leg{display:flex;flex-direction:column;gap:5px;width:100%}
+.leg-item{display:flex;align-items:center;gap:7px;font-size:.78rem;color:var(--muted)}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- DEVICE PICKER -->
+<div id="device-picker">
+  <div class="dp-logo">Gym<span>Buddy</span></div>
+  <div class="dp-sub">このデバイスはどちらですか？<br>一度選ぶと固定されます</div>
+  <div class="dp-row">
+    <button class="dp-btn"   onclick="pickDevice('A')">A<span>デバイスA</span></button>
+    <button class="dp-btn b" onclick="pickDevice('B')">B<span>デバイスB</span></button>
+  </div>
+  <div class="dp-note">※ リセット：ブラウザのlocalStorageを削除</div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="header">
+    <div class="logo">Gym<span>Buddy</span></div>
+    <div class="dev-badge" id="dev-badge"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="chat"       onclick="showTab('chat')">💬 チャット</button>
+    <button class="tab-btn"        data-tab="photos"     onclick="showTab('photos')">📸 写真登録</button>
+    <button class="tab-btn"        data-tab="tournament" onclick="showTab('tournament')">🏆 トーナメント</button>
+  </div>
+
+  <!-- CHAT -->
+  <div id="tab-chat" class="panel" style="display:flex;padding:0;gap:0">
+    <div id="msgs"></div>
+    <div class="chat-foot">
+      <input id="chat-inp" type="text" placeholder="ジムの時間を相談しよう… (Enter送信)">
+      <button class="btn-send" onclick="sendMsg()">送信</button>
+    </div>
+  </div>
+
+  <!-- PHOTOS -->
+  <div id="tab-photos" class="panel">
+    <div>
+      <div class="sec-title">写真を登録</div>
+      <div class="sec-sub">対戦させたい写真を追加してください</div>
+      <div class="up-box">
+        <input type="text" id="p-name" placeholder="名前（例: さくら、りんご）">
+        <input type="file" id="p-file" accept="image/*">
+        <button class="btn-prim" id="up-btn" onclick="uploadPhoto()">登録する</button>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">登録済み写真</div>
+      <div id="photo-list"></div>
+    </div>
+  </div>
+
+  <!-- TOURNAMENT -->
+  <div id="tab-tournament" class="panel">
+    <div>
+      <div class="sec-title">フォトバトル</div>
+      <div class="sec-sub">写真登録後にトーナメントを生成し、それぞれのデバイスで採点してください</div>
+      <div class="t-act">
+        <button class="btn-prim" onclick="generateTournament()">トーナメント生成</button>
+        <button class="btn-sec"  onclick="renderBracket()">↻ 更新</button>
+      </div>
+    </div>
+    <div id="bracket"></div>
+  </div>
+</div>
+
+<!-- SCORING MODAL -->
+<div class="overlay" id="sc-modal">
+  <div class="mbox">
+    <div class="mhead">
+      <div class="mtitle">採点 — デバイス <span id="sc-dev"></span></div>
+      <button class="mclose" onclick="closeScoring()">×</button>
+    </div>
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">採点する写真を選んでください</p>
+    <div class="sc-row">
+      <button class="sc-btn sel" id="sc-btn-a" onclick="selectSide('a')"><div id="sc-a"></div></button>
+      <button class="sc-btn"     id="sc-btn-b" onclick="selectSide('b')"><div id="sc-b"></div></button>
+    </div>
+    <input type="hidden" id="sc-side" value="a">
+    <div class="sl-row"><div class="sl-lbl"><span>輪郭</span><strong id="sv-contour">5</strong></div><input type="range" id="sl-contour" min="1" max="10" value="5"></div>
+    <div class="sl-row"><div class="sl-lbl"><span>鼻</span><strong id="sv-nose">5</strong></div><input type="range" id="sl-nose" min="1" max="10" value="5"></div>
+    <div class="sl-row"><div class="sl-lbl"><span>目</span><strong id="sv-eyes">5</strong></div><input type="range" id="sl-eyes" min="1" max="10" value="5"></div>
+    <div class="sl-row"><div class="sl-lbl"><span>口</span><strong id="sv-mouth">5</strong></div><input type="range" id="sl-mouth" min="1" max="10" value="5"></div>
+    <div class="sl-row"><div class="sl-lbl"><span>全体バランス</span><strong id="sv-balance">5</strong></div><input type="range" id="sl-balance" min="1" max="10" value="5"></div>
+    <button class="btn-sub" onclick="submitScore()">この採点を保存する</button>
+  </div>
+</div>
+
+<!-- CHART MODAL -->
+<div class="overlay" id="ch-modal">
+  <div class="mbox">
+    <div class="mhead">
+      <div class="mtitle">採点結果 — 円グラフ</div>
+      <button class="mclose" onclick="closeChart()">×</button>
+    </div>
+    <div id="ch-con"></div>
+  </div>
+</div>
+
+</body>
+</html>
