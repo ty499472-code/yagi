@@ -385,8 +385,7 @@ async function generateTournament() {
   if (photos.length < 2) { alert("写真が2枚以上必要です"); return; }
   shuffle(photos);
   const pairs = [];
-  for (let i = 0; i+1 < photos.length; i += 2) pairs.push([photos[i].id, photos[i+1].id]);
-  // scoresのみ保存。写真データは含めない
+  for (let i = 0; i+1 < photos.length; i += 2) pairs.push({ a: photos[i].id, b: photos[i+1].id });
   await setDoc(doc(db,"tournament","current"), { pairs, scores: {}, at: serverTimestamp() });
   alert("トーナメントを生成しました！");
   renderBracket();
@@ -407,13 +406,13 @@ async function renderBracket() {
 
   el.innerHTML = "";
   t.pairs.forEach((pair, pi) => {
-    const pA = pm[pair[0]], pB = pm[pair[1]];
+    const pA = pm[pair.a], pB = pm[pair.b];
     if (!pA || !pB) return;
-    const sA = calcAvg(t.scores, pair[0]);
-    const sB = calcAvg(t.scores, pair[1]);
+    const sA = calcAvg(t.scores, pair.a);
+    const sB = calcAvg(t.scores, pair.b);
     const done = sA && sB;
-    const voted = t.scores[`${pair[0]}_${pair[1]}_${DEV}`] !== undefined ||
-                  t.scores[`${pair[1]}_${pair[0]}_${DEV}`] !== undefined;
+    const voted = t.scores[`${pair.a}_${pair.b}_${DEV}`] !== undefined ||
+                  t.scores[`${pair.b}_${pair.a}_${DEV}`] !== undefined;
 
     const card = document.createElement("div");
     card.className = "m-card";
@@ -464,8 +463,8 @@ async function renderBracket() {
 }
 
 function hasVote(scores, pair, dev) {
-  return scores[`${pair[0]}_${pair[1]}_${dev}`] !== undefined ||
-         scores[`${pair[1]}_${pair[0]}_${dev}`] !== undefined;
+  return scores[`${pair.a}_${pair.b}_${dev}`] !== undefined ||
+         scores[`${pair.b}_${pair.a}_${dev}`] !== undefined;
 }
 
 function calcAvg(scores, pid) {
@@ -492,8 +491,8 @@ let _pair = null;
 
 function openScoring(t, pi, pm) {
   const pair = t.pairs[pi];
-  const pA = pm[pair[0]], pB = pm[pair[1]];
-  _pair = { idA: pair[0], idB: pair[1] };
+  const pA = pm[pair.a], pB = pm[pair.b];
+  _pair = { idA: pair.a, idB: pair.b };
   document.getElementById("sc-a").innerHTML = `<img src="${pA.url}" class="sc-img"><span>${esc(pA.name)}</span>`;
   document.getElementById("sc-b").innerHTML = `<img src="${pB.url}" class="sc-img"><span>${esc(pB.name)}</span>`;
   selectSide("a");
@@ -536,9 +535,9 @@ document.getElementById("sc-close").addEventListener("click", () => {
 // ====== CHART ======
 function openChart(t, pi, pm) {
   const pair = t.pairs[pi];
-  const sA = calcAvg(t.scores, pair[0]);
-  const sB = calcAvg(t.scores, pair[1]);
-  const pA = pm[pair[0]], pB = pm[pair[1]];
+  const sA = calcAvg(t.scores, pair.a);
+  const sB = calcAvg(t.scores, pair.b);
+  const pA = pm[pair.a], pB = pm[pair.b];
   if (!sA||!sB) { alert("両方の採点が必要です"); return; }
   document.getElementById("ch-modal").style.display = "flex";
   drawCharts(sA, pA.name, sB, pB.name);
