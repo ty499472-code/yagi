@@ -340,8 +340,8 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
         <thead>
           <tr>
             <th>項目</th>
-            <th class="col-a" id="bth-a"></th>
-            <th class="col-b" id="bth-b"></th>
+            <th class="col-a"></th>
+            <th class="col-b"></th>
             <th></th><th></th><th style="color:var(--gold)">平均</th>
             <th></th><th></th>
           </tr>
@@ -875,9 +875,6 @@ function buildBattleTable(pA, pB) {
   const hasAb = sB.A && CATS.every(c=>sB.A[c]!==undefined);
   const hasBb = sB.B && CATS.every(c=>sB.B[c]!==undefined);
 
-  document.getElementById("bth-a").textContent = pA.name;
-  document.getElementById("bth-b").textContent = pB.name;
-
   // テーブルヘッダー再構築
   const thead = document.querySelector("#b-table thead tr");
   thead.innerHTML = `
@@ -885,7 +882,11 @@ function buildBattleTable(pA, pB) {
     <th colspan="3" class="col-a" style="border-right:1px solid var(--border)">${esc(pA.name)}</th>
     <th colspan="3" class="col-b">${esc(pB.name)}</th>`;
 
+  // 既存のsubHeadがあれば削除
+  const oldSub = document.getElementById("b-subhead");
+  if (oldSub) oldSub.remove();
   const subHead = document.createElement("tr");
+  subHead.id = "b-subhead";
   subHead.innerHTML = `<th></th>
     <th class="col-a">A</th><th class="col-a">B</th><th class="col-avg" style="border-right:1px solid var(--border)">平均</th>
     <th class="col-b">A</th><th class="col-b">B</th><th class="col-avg">平均</th>`;
