@@ -321,7 +321,7 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
     <!-- VS ヘッダー -->
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
       <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
-        <img id="b-img-a" src="" alt="" style="width:90px;height:90px;object-fit:cover;border-radius:12px;border:3px solid var(--border)" id="b-img-a">
+        <img id="b-img-a" src="" alt="" style="width:90px;height:90px;object-fit:cover;border-radius:12px;border:3px solid var(--border)">
         <div style="font-size:.9rem;font-weight:700;text-align:center" id="b-name-a"></div>
         <div style="font-size:1.2rem;font-weight:800;color:var(--c1)" id="b-avg-a"></div>
       </div>
@@ -839,6 +839,16 @@ async function openBattle(t, pi, pm) {
 
   document.getElementById("vote-modal").style.display = "flex";
 
+  // 投票ボタンのイベントを毎回付け替え
+  const btnA = document.getElementById("vote-btn-a");
+  const btnB = document.getElementById("vote-btn-b");
+  const newBtnA = btnA.cloneNode(true);
+  const newBtnB = btnB.cloneNode(true);
+  btnA.parentNode.replaceChild(newBtnA, btnA);
+  btnB.parentNode.replaceChild(newBtnB, btnB);
+  newBtnA.addEventListener("click", () => castWinnerVote(pair.a));
+  newBtnB.addEventListener("click", () => castWinnerVote(pair.b));
+
   if (_bUnsub) _bUnsub();
   _bUnsub = onSnapshot(doc(db,"tournament","current"), snap => {
     if (!snap.exists()) return;
@@ -974,8 +984,7 @@ async function castWinnerVote(winnerId) {
   await updateDoc(tRef, { winners: td.winners });
 }
 
-document.getElementById("vote-btn-a").addEventListener("click", () => castWinnerVote(_bState.pair.a));
-document.getElementById("vote-btn-b").addEventListener("click", () => castWinnerVote(_bState.pair.b));
+// vote-btn listeners registered in openBattle
 
 function closeBattle() {
   if (_bUnsub) { _bUnsub(); _bUnsub=null; }
