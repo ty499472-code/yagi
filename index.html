@@ -7,7 +7,7 @@
 <style>
 :root{
   --bg:#0c0e11;--bg2:#141820;--bg3:#1c2230;--bg4:#242c3a;
-  --c1:#5DCAA5;--c2:#7F77DD;
+  --c1:#5DCAA5;--c2:#7F77DD;--danger:#e05555;
   --text:#dde2ea;--muted:#6b7685;
   --border:rgba(255,255,255,0.07);--r:12px;
 }
@@ -26,7 +26,6 @@ body{font-family:'Helvetica Neue',Helvetica,sans-serif;background:var(--bg);colo
 .dp-note{font-size:.78rem;color:var(--muted)}
 
 #app{display:none;flex-direction:column;height:100vh}
-
 .header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--bg2);border-bottom:1px solid var(--border)}
 .logo{font-size:1.2rem;font-weight:800;flex:1;letter-spacing:-.5px}
 .logo span{color:var(--c1)}
@@ -63,10 +62,14 @@ body{font-family:'Helvetica Neue',Helvetica,sans-serif;background:var(--bg);colo
 .up-box input:focus{border-color:var(--c1)}
 .btn-prim{background:var(--c1);color:#000;border:none;border-radius:8px;padding:9px 20px;font-weight:700;font-size:.9rem;cursor:pointer;align-self:flex-start}
 .btn-prim:disabled{opacity:.5;cursor:not-allowed}
-#photo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:8px}
-.p-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+
+#photo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:8px}
+.p-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative}
+.p-card:hover .p-del{opacity:1}
 .p-thumb{width:100%;aspect-ratio:1;object-fit:cover;display:block}
 .p-name{padding:7px 8px;font-size:.78rem;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.p-del{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.65);border:none;color:#fff;border-radius:50%;width:26px;height:26px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;line-height:1}
+.p-del:hover{background:var(--danger)}
 
 .t-act{display:flex;gap:10px;flex-wrap:wrap}
 .btn-sec{background:none;border:1px solid var(--border);color:var(--text);padding:9px 18px;border-radius:8px;font-size:.88rem;cursor:pointer}
@@ -149,7 +152,6 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
     <button class="tab-btn" data-tab="tournament">🏆 トーナメント</button>
   </div>
 
-  <!-- CHAT -->
   <div id="tab-chat" class="panel" style="display:flex;padding:0;gap:0">
     <div id="msgs"></div>
     <div class="chat-foot">
@@ -158,7 +160,6 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
     </div>
   </div>
 
-  <!-- PHOTOS -->
   <div id="tab-photos" class="panel">
     <div>
       <div class="sec-title">写真を登録</div>
@@ -175,7 +176,6 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
     </div>
   </div>
 
-  <!-- TOURNAMENT -->
   <div id="tab-tournament" class="panel">
     <div>
       <div class="sec-title">フォトバトル</div>
@@ -226,7 +226,7 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, collection, addDoc, onSnapshot, orderBy, query,
-  doc, setDoc, getDoc, updateDoc, getDocs, serverTimestamp
+  doc, setDoc, getDoc, updateDoc, getDocs, deleteDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -241,18 +241,18 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-// ====== UTILS ======
 const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const fmt = d => d ? d.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}) : "";
 const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a; };
 
+// 写真をリサイズしてBase64に変換
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const reader = new FileReader();
     reader.onload = e => {
       img.onload = () => {
-        const MAX = 600;
+        const MAX = 400; // サイズを抑えてFirestore制限回避
         let w = img.width, h = img.height;
         if (w > MAX || h > MAX) {
           if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -261,7 +261,7 @@ function fileToBase64(file) {
         const canvas = document.createElement("canvas");
         canvas.width = w; canvas.height = h;
         canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.7));
+        resolve(canvas.toDataURL("image/jpeg", 0.6));
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -285,18 +285,11 @@ function boot() {
   showTab("chat");
 }
 
-if (DEV) {
-  boot();
-} else {
-  document.getElementById("device-picker").style.display = "flex";
-}
+if (DEV) { boot(); }
+else { document.getElementById("device-picker").style.display = "flex"; }
 
-document.getElementById("pick-a").addEventListener("click", () => {
-  localStorage.setItem("gymbuddy_device", "A"); DEV = "A"; boot();
-});
-document.getElementById("pick-b").addEventListener("click", () => {
-  localStorage.setItem("gymbuddy_device", "B"); DEV = "B"; boot();
-});
+document.getElementById("pick-a").addEventListener("click", () => { localStorage.setItem("gymbuddy_device","A"); DEV="A"; boot(); });
+document.getElementById("pick-b").addEventListener("click", () => { localStorage.setItem("gymbuddy_device","B"); DEV="B"; boot(); });
 
 // ====== TABS ======
 function showTab(tab) {
@@ -307,10 +300,7 @@ function showTab(tab) {
   if (tab === "photos") loadPhotos();
   if (tab === "tournament") renderBracket();
 }
-
-document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => showTab(btn.dataset.tab));
-});
+document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
 
 // ====== CHAT ======
 function initChat() {
@@ -320,9 +310,8 @@ function initChat() {
     box.innerHTML = "";
     snap.forEach(d => {
       const m = d.data();
-      const mine = m.dev === DEV;
       const el = document.createElement("div");
-      el.className = "msg " + (mine ? "mine" : "theirs");
+      el.className = "msg " + (m.dev === DEV ? "mine" : "theirs");
       el.innerHTML = `<div class="msg-who">デバイス ${esc(m.dev)}</div>
         <div class="msg-bub">${esc(m.text)}</div>
         <div class="msg-time">${fmt(m.at?.toDate())}</div>`;
@@ -339,7 +328,6 @@ async function sendMsg() {
   inp.value = "";
   await addDoc(collection(db,"messages"), { text, dev: DEV, at: serverTimestamp() });
 }
-
 document.getElementById("btn-send").addEventListener("click", sendMsg);
 document.getElementById("chat-inp").addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); }
@@ -370,41 +358,63 @@ async function loadPhotos() {
     const p = d.data();
     const c = document.createElement("div");
     c.className = "p-card";
-    c.innerHTML = `<img src="${p.url}" class="p-thumb" alt="${esc(p.name)}"><div class="p-name">${esc(p.name)}</div>`;
+    c.innerHTML = `
+      <img src="${p.url}" class="p-thumb" alt="${esc(p.name)}">
+      <div class="p-name">${esc(p.name)}</div>
+      <button class="p-del" data-id="${d.id}" title="削除">×</button>`;
     list.appendChild(c);
+  });
+  // 削除ボタン
+  list.querySelectorAll(".p-del").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("この写真を削除しますか？")) return;
+      await deleteDoc(doc(db,"photos", btn.dataset.id));
+      loadPhotos();
+    });
   });
 }
 
 document.getElementById("up-btn").addEventListener("click", uploadPhoto);
 
 // ====== TOURNAMENT ======
+// トーナメントにはIDリストのみ保存、写真データは別途取得
 async function generateTournament() {
   const snap = await getDocs(collection(db,"photos"));
   let photos = [];
-  snap.forEach(d => photos.push({ id: d.id, ...d.data() }));
+  snap.forEach(d => photos.push({ id: d.id })); // IDのみ
   if (photos.length < 2) { alert("写真が2枚以上必要です"); return; }
   shuffle(photos);
   const pairs = [];
   for (let i = 0; i+1 < photos.length; i += 2) pairs.push([photos[i].id, photos[i+1].id]);
-  const pm = photos.reduce((a,p) => { a[p.id]=p; return a; }, {});
-  await setDoc(doc(db,"tournament","current"), { pairs, pm, scores: {}, at: serverTimestamp() });
+  // scoresのみ保存。写真データは含めない
+  await setDoc(doc(db,"tournament","current"), { pairs, scores: {}, at: serverTimestamp() });
+  alert("トーナメントを生成しました！");
   renderBracket();
 }
 
 async function renderBracket() {
   const el = document.getElementById("bracket");
-  const snap = await getDoc(doc(db,"tournament","current"));
-  if (!snap.exists()) { el.innerHTML = `<p class="empty">まずトーナメントを生成してください</p>`; return; }
-  const t = snap.data();
+  el.innerHTML = `<p class="empty">読み込み中…</p>`;
+
+  const tSnap = await getDoc(doc(db,"tournament","current"));
+  if (!tSnap.exists()) { el.innerHTML = `<p class="empty">まずトーナメントを生成してください</p>`; return; }
+  const t = tSnap.data();
+
+  // 全写真を取得してマップ化
+  const pSnap = await getDocs(collection(db,"photos"));
+  const pm = {};
+  pSnap.forEach(d => pm[d.id] = d.data());
+
   el.innerHTML = "";
   t.pairs.forEach((pair, pi) => {
-    const pA = t.pm[pair[0]], pB = t.pm[pair[1]];
+    const pA = pm[pair[0]], pB = pm[pair[1]];
     if (!pA || !pB) return;
     const sA = calcAvg(t.scores, pair[0]);
     const sB = calcAvg(t.scores, pair[1]);
     const done = sA && sB;
     const voted = t.scores[`${pair[0]}_${pair[1]}_${DEV}`] !== undefined ||
                   t.scores[`${pair[1]}_${pair[0]}_${DEV}`] !== undefined;
+
     const card = document.createElement("div");
     card.className = "m-card";
     card.innerHTML = `
@@ -439,17 +449,16 @@ async function renderBracket() {
     el.appendChild(card);
   });
 
-  // ブラケット内ボタンのイベント（動的要素）
   el.querySelectorAll("[data-action='score']").forEach(btn => {
     btn.addEventListener("click", () => {
       const pi = parseInt(btn.dataset.pi);
-      openScoring(t, pi);
+      openScoring(t, pi, pm);
     });
   });
   el.querySelectorAll("[data-action='chart']").forEach(btn => {
     btn.addEventListener("click", () => {
       const pi = parseInt(btn.dataset.pi);
-      openChart(t, pi);
+      openChart(t, pi, pm);
     });
   });
 }
@@ -481,9 +490,9 @@ document.getElementById("btn-refresh").addEventListener("click", renderBracket);
 // ====== SCORING ======
 let _pair = null;
 
-function openScoring(t, pi) {
+function openScoring(t, pi, pm) {
   const pair = t.pairs[pi];
-  const pA = t.pm[pair[0]], pB = t.pm[pair[1]];
+  const pA = pm[pair[0]], pB = pm[pair[1]];
   _pair = { idA: pair[0], idB: pair[1] };
   document.getElementById("sc-a").innerHTML = `<img src="${pA.url}" class="sc-img"><span>${esc(pA.name)}</span>`;
   document.getElementById("sc-b").innerHTML = `<img src="${pB.url}" class="sc-img"><span>${esc(pB.name)}</span>`;
@@ -525,11 +534,11 @@ document.getElementById("sc-close").addEventListener("click", () => {
 });
 
 // ====== CHART ======
-function openChart(t, pi) {
+function openChart(t, pi, pm) {
   const pair = t.pairs[pi];
   const sA = calcAvg(t.scores, pair[0]);
   const sB = calcAvg(t.scores, pair[1]);
-  const pA = t.pm[pair[0]], pB = t.pm[pair[1]];
+  const pA = pm[pair[0]], pB = pm[pair[1]];
   if (!sA||!sB) { alert("両方の採点が必要です"); return; }
   document.getElementById("ch-modal").style.display = "flex";
   drawCharts(sA, pA.name, sB, pB.name);
@@ -569,7 +578,6 @@ document.getElementById("ch-close").addEventListener("click", () => {
   document.getElementById("ch-modal").style.display = "none";
 });
 
-// slider live update
 document.querySelectorAll("input[type=range]").forEach(sl => {
   sl.addEventListener("input", () => {
     document.getElementById("sv-" + sl.id.slice(3)).textContent = sl.value;
