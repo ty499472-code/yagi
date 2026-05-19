@@ -875,26 +875,8 @@ function buildBattleTable(pA, pB) {
   const hasAb = sB.A && CATS.every(c=>sB.A[c]!==undefined);
   const hasBb = sB.B && CATS.every(c=>sB.B[c]!==undefined);
 
-  // テーブルヘッダー再構築
-  const thead = document.querySelector("#b-table thead tr");
-  thead.innerHTML = `
-    <th>項目</th>
-    <th colspan="3" class="col-a" style="border-right:1px solid var(--border)">${esc(pA.name)}</th>
-    <th colspan="3" class="col-b">${esc(pB.name)}</th>`;
-
-  // 既存のsubHeadがあれば削除
-  const oldSub = document.getElementById("b-subhead");
-  if (oldSub) oldSub.remove();
-  const subHead = document.createElement("tr");
-  subHead.id = "b-subhead";
-  subHead.innerHTML = `<th></th>
-    <th class="col-a">A</th><th class="col-a">B</th><th class="col-avg" style="border-right:1px solid var(--border)">平均</th>
-    <th class="col-b">A</th><th class="col-b">B</th><th class="col-avg">平均</th>`;
-  thead.parentElement.insertBefore(subHead, document.getElementById("b-tbody"));
-
-  const tbody = document.getElementById("b-tbody");
-  tbody.innerHTML = "";
-
+  // テーブルをまるごとinnerHTMLで再構築（DOM操作エラー回避）
+  let rows = "";
   let totalAvgA = 0, totalAvgB = 0;
   PARAMS.forEach(p => {
     const vaA = hasAa ? sA.A[p.key] : null;
@@ -907,11 +889,9 @@ function buildBattleTable(pA, pB) {
     const avgB = avB.length ? (avg(avB)).toFixed(1) : "—";
     if (avA.length) totalAvgA += parseFloat(avgA);
     if (avB.length) totalAvgB += parseFloat(avgB);
-
     const winA = avA.length && avB.length && parseFloat(avgA) > parseFloat(avgB);
     const winB = avA.length && avB.length && parseFloat(avgB) > parseFloat(avgA);
-
-    tbody.innerHTML += `<tr>
+    rows += `<tr>
       <td>${p.label}</td>
       <td class="${winA?'cell-win col-a':'cell-lose'}">${vaA??'—'}</td>
       <td class="${winA?'cell-win col-a':'cell-lose'}">${vbA??'—'}</td>
@@ -921,16 +901,32 @@ function buildBattleTable(pA, pB) {
       <td class="${winB?'cell-win':'cell-lose'}" style="font-weight:700">${avgB}</td>
     </tr>`;
   });
-
   const fAvgA = (totalAvgA/PARAMS.length).toFixed(1);
   const fAvgB = (totalAvgB/PARAMS.length).toFixed(1);
-  tbody.innerHTML += `<tr class="total-row">
+  rows += `<tr class="total-row">
     <td>総合平均</td>
     <td colspan="2" class="col-a">—</td>
     <td style="border-right:1px solid var(--border);color:var(--gold)">${fAvgA}</td>
     <td colspan="2" class="col-b">—</td>
     <td style="color:var(--gold)">${fAvgB}</td>
   </tr>`;
+
+  document.getElementById("b-table").innerHTML = `
+    <thead>
+      <tr>
+        <th>項目</th>
+        <th colspan="3" class="col-a" style="border-right:1px solid var(--border)">${esc(pA.name)}</th>
+        <th colspan="3" class="col-b">${esc(pB.name)}</th>
+      </tr>
+      <tr>
+        <th></th>
+        <th class="col-a">A</th><th class="col-a">B</th>
+        <th class="col-avg" style="border-right:1px solid var(--border)">平均</th>
+        <th class="col-b">A</th><th class="col-b">B</th>
+        <th class="col-avg">平均</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>`;
 }
 
 function renderVoteStatus(winnerVotes, tData) {
