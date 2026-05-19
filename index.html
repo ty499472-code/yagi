@@ -262,7 +262,7 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
   <div id="tab-tournament" class="panel">
     <div>
       <div class="sec-title">フォトバトル トーナメント</div>
-      <div class="sec-sub">試合開始で採点表を確認しながら勝者を投票してください</div>
+      <div class="sec-sub">投票するボタンで採点表を確認しながら勝者を決定！</div>
       <div class="t-act">
         <button class="btn-prim" id="btn-gen">トーナメント生成</button>
         <button class="btn-sec"  id="btn-refresh">↻ 更新</button>
@@ -280,11 +280,11 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
       <button class="mclose" id="sc-close">×</button>
     </div>
     <div class="msub" id="sc-sub"></div>
-    <div class="sc-photo-row">
-      <img id="sc-img" class="sc-photo-img" src="" alt="">
-      <div>
-        <div class="sc-photo-name" id="sc-pname"></div>
-        <div class="sc-photo-dev" id="sc-pdev"></div>
+    <div style="text-align:center;margin-bottom:14px">
+      <img id="sc-img" src="" alt="" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;border:2px solid var(--border)">
+      <div style="margin-top:10px">
+        <div id="sc-pname" style="font-size:1.1rem;font-weight:700"></div>
+        <div id="sc-pdev" style="font-size:.8rem;color:var(--muted);margin-top:2px"></div>
       </div>
     </div>
     <div class="sl-row"><div class="sl-lbl"><span>輪郭</span><strong id="sv-contour" class="col-a">5</strong></div><input type="range" id="sl-contour" min="1" max="10" value="5"></div>
@@ -307,72 +307,75 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
   </div>
 </div>
 
-<!-- BATTLE SCREEN -->
-<div id="battle-screen">
-  <div class="bh">
-    <div>
-      <div class="bh-title" id="bh-title">MATCH 1</div>
-      <div class="bh-sub">採点表を確認して勝者を投票してください</div>
+<!-- VOTE MODAL -->
+<div class="overlay" id="vote-modal">
+  <div class="mbox" style="max-width:540px">
+    <div class="mhead">
+      <div>
+        <div class="mtitle" id="vote-match-title">MATCH 1</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:2px">採点表を確認して勝者に投票してください</div>
+      </div>
+      <button class="mclose" id="vote-close">×</button>
     </div>
-    <button class="btn-back" id="btn-back">← 戻る</button>
-  </div>
 
-  <!-- VS -->
-  <div class="battle-vs">
-    <div class="battle-fighter">
-      <img id="b-img-a" class="battle-img" src="" alt="">
-      <div class="battle-name" id="b-name-a"></div>
-      <div class="battle-score col-a" id="b-avg-a"></div>
+    <!-- VS ヘッダー -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+        <img id="b-img-a" src="" alt="" style="width:90px;height:90px;object-fit:cover;border-radius:12px;border:3px solid var(--border)" id="b-img-a">
+        <div style="font-size:.9rem;font-weight:700;text-align:center" id="b-name-a"></div>
+        <div style="font-size:1.2rem;font-weight:800;color:var(--c1)" id="b-avg-a"></div>
+      </div>
+      <div style="font-size:1.4rem;font-weight:900;color:var(--muted);flex-shrink:0">VS</div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+        <img id="b-img-b" src="" alt="" style="width:90px;height:90px;object-fit:cover;border-radius:12px;border:3px solid var(--border)">
+        <div style="font-size:.9rem;font-weight:700;text-align:center" id="b-name-b"></div>
+        <div style="font-size:1.2rem;font-weight:800;color:var(--c2)" id="b-avg-b"></div>
+      </div>
     </div>
-    <div class="battle-vs-badge">VS</div>
-    <div class="battle-fighter">
-      <img id="b-img-b" class="battle-img" src="" alt="">
-      <div class="battle-name" id="b-name-b"></div>
-      <div class="battle-score col-b" id="b-avg-b"></div>
+
+    <!-- 採点比較テーブル -->
+    <div style="margin-bottom:16px">
+      <div class="battle-table-title">採点比較</div>
+      <table class="battle-table" id="b-table">
+        <thead>
+          <tr>
+            <th>項目</th>
+            <th class="col-a" id="bth-a"></th>
+            <th class="col-b" id="bth-b"></th>
+            <th></th><th></th><th style="color:var(--gold)">平均</th>
+            <th></th><th></th>
+          </tr>
+        </thead>
+        <tbody id="b-tbody"></tbody>
+      </table>
     </div>
-  </div>
 
-  <!-- 採点比較テーブル -->
-  <div class="battle-table-wrap">
-    <div class="battle-table-title">採点比較</div>
-    <table class="battle-table" id="b-table">
-      <thead>
-        <tr>
-          <th>項目</th>
-          <th class="col-a" id="bth-a"></th>
-          <th class="col-b" id="bth-b"></th>
-          <th></th><th></th><th style="color:var(--gold)">平均</th>
-          <th></th><th></th>
-        </tr>
-      </thead>
-      <tbody id="b-tbody"></tbody>
-    </table>
-  </div>
-
-  <!-- 勝者投票 -->
-  <div class="vote-section">
-    <div class="vote-title">勝者を投票してください</div>
-    <div class="vote-btns">
+    <!-- 投票ボタン -->
+    <div style="font-size:.85rem;font-weight:700;text-align:center;color:var(--muted);margin-bottom:10px">勝者を選んでください</div>
+    <div class="vote-btns" style="margin-bottom:12px">
       <button class="vote-btn" id="vote-btn-a">
-        <img id="vote-img-a" src="" alt="">
+        <img id="vote-img-a" src="" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px">
         <span id="vote-name-a"></span>
       </button>
       <button class="vote-btn" id="vote-btn-b">
-        <img id="vote-img-b" src="" alt="">
+        <img id="vote-img-b" src="" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px">
         <span id="vote-name-b"></span>
       </button>
     </div>
-    <div class="vote-status">
+    <div class="vote-status" style="margin-bottom:14px">
       <span class="vote-dot"><span class="vdot" id="vdot-a">A</span> デバイスA</span>
       <span class="vote-dot"><span class="vdot" id="vdot-b">B</span> デバイスB</span>
     </div>
-  </div>
 
-  <!-- 結果バナー -->
-  <div class="battle-result-banner" id="b-result">
-    <div class="brb-title" id="b-result-title"></div>
-    <div class="brb-sub" id="b-result-sub"></div>
-    <button class="btn-done" id="btn-done">トーナメントに戻る</button>
+    <!-- 結果バナー -->
+    <div class="battle-result-banner" id="b-result" style="margin:0 0 8px">
+      <div class="brb-title" id="b-result-title"></div>
+      <div class="brb-sub" id="b-result-sub"></div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px">
+        <button class="btn-done" id="btn-done">閉じる</button>
+        <button class="btn-done" id="btn-next" style="background:var(--c2);display:none">次の試合へ ▶</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -791,7 +794,7 @@ async function renderBracket() {
           ${Object.keys(winnerVotes).length}名投票済み
         </div>
         <div class="m-btns">
-          <button class="btn-sm start" data-action="battle" data-pi="${pi}">⚔ 試合開始</button>
+          <button class="btn-sm start" data-action="battle" data-pi="${pi}">🗳 投票する</button>
         </div>
       </div>`;
     el.appendChild(card);
@@ -804,15 +807,18 @@ async function renderBracket() {
 document.getElementById("btn-gen").addEventListener("click", generateTournament);
 document.getElementById("btn-refresh").addEventListener("click", renderBracket);
 
-// ===== BATTLE SCREEN =====
+// ===== VOTE MODAL =====
 let _bState = null, _bUnsub = null;
+let _allPairs = [], _allPm = {};
 
 async function openBattle(t, pi, pm) {
   const pair = t.pairs[pi];
   const pA = pm[pair.a], pB = pm[pair.b];
-  _bState = { pi, pair, pA, pB };
+  _bState = { t, pi, pair, pA, pB };
+  _allPairs = t.pairs;
+  _allPm = pm;
 
-  document.getElementById("bh-title").textContent = `MATCH ${pi+1}`;
+  document.getElementById("vote-match-title").textContent = `MATCH ${pi+1}`;
   document.getElementById("b-img-a").src = pA.url;
   document.getElementById("b-img-b").src = pB.url;
   document.getElementById("b-name-a").textContent = pA.name;
@@ -822,26 +828,21 @@ async function openBattle(t, pi, pm) {
   document.getElementById("vote-name-a").textContent = pA.name;
   document.getElementById("vote-name-b").textContent = pB.name;
 
-  // 採点表
   buildBattleTable(pA, pB);
-
-  // 平均スコア表示
   document.getElementById("b-avg-a").textContent = calcAvgScore(pA) ?? "未採点";
   document.getElementById("b-avg-b").textContent = calcAvgScore(pB) ?? "未採点";
 
   document.getElementById("b-result").classList.remove("show","win","draw");
-  document.getElementById("b-img-a").className = "battle-img";
-  document.getElementById("b-img-b").className = "battle-img";
   document.getElementById("vote-btn-a").className = "vote-btn";
   document.getElementById("vote-btn-b").className = "vote-btn";
+  document.getElementById("btn-next").style.display = "none";
 
-  document.getElementById("battle-screen").style.display = "flex";
-  document.getElementById("app").style.display = "none";
+  document.getElementById("vote-modal").style.display = "flex";
 
   if (_bUnsub) _bUnsub();
   _bUnsub = onSnapshot(doc(db,"tournament","current"), snap => {
     if (!snap.exists()) return;
-    renderVoteStatus(snap.data().winners?.[pi] || {});
+    renderVoteStatus(snap.data().winners?.[pi] || {}, snap.data());
   });
 }
 
@@ -921,22 +922,16 @@ function buildBattleTable(pA, pB) {
   </tr>`;
 }
 
-function renderVoteStatus(winnerVotes) {
+function renderVoteStatus(winnerVotes, tData) {
   const { pair } = _bState;
   const myVote = winnerVotes[DEV];
-  const otherDev = DEV==="A"?"B":"A";
-  const otherVote = winnerVotes[otherDev];
 
-  document.getElementById("vdot-a").className = "vdot"+(winnerVotes.A?"on":"");
-  document.getElementById("vdot-b").className = "vdot"+(winnerVotes.B?"on":"");
-
+  document.getElementById("vdot-a").className = "vdot"+(winnerVotes.A?" on":"");
+  document.getElementById("vdot-b").className = "vdot"+(winnerVotes.B?" on":"");
   document.getElementById("vote-btn-a").className = "vote-btn"+(myVote===pair.a?" sel-a":"");
   document.getElementById("vote-btn-b").className = "vote-btn"+(myVote===pair.b?" sel-b":"");
 
-  const imgA = document.getElementById("b-img-a");
-  const imgB = document.getElementById("b-img-b");
-
-  // 両者投票済みなら結果
+  // 両者投票済みなら結果表示
   if (winnerVotes.A && winnerVotes.B) {
     const vA = Object.values(winnerVotes).filter(v=>v===pair.a).length;
     const vB = Object.values(winnerVotes).filter(v=>v===pair.b).length;
@@ -945,17 +940,26 @@ function renderVoteStatus(winnerVotes) {
     if (vA>vB) {
       res.classList.add("win");
       document.getElementById("b-result-title").textContent = `🏆 ${_bState.pA.name} の勝利！`;
-      imgA.className="battle-img glow-a"; imgB.className="battle-img";
     } else if (vB>vA) {
       res.classList.add("win");
       document.getElementById("b-result-title").textContent = `🏆 ${_bState.pB.name} の勝利！`;
-      imgB.className="battle-img glow-b"; imgA.className="battle-img";
     } else {
       res.classList.add("draw");
       document.getElementById("b-result-title").textContent = "引き分け！";
     }
     document.getElementById("b-result-sub").textContent =
       `${_bState.pA.name}: ${vA}票 / ${_bState.pB.name}: ${vB}票`;
+
+    // 次の試合があれば「次の試合へ」ボタンを表示
+    const nextPi = _bState.pi + 1;
+    if (tData && nextPi < _allPairs.length) {
+      const nextBtn = document.getElementById("btn-next");
+      nextBtn.style.display = "inline-block";
+      nextBtn.onclick = () => {
+        if (_bUnsub) { _bUnsub(); _bUnsub=null; }
+        openBattle(tData, nextPi, _allPm);
+      };
+    }
   }
 }
 
@@ -974,11 +978,10 @@ document.getElementById("vote-btn-b").addEventListener("click", () => castWinner
 
 function closeBattle() {
   if (_bUnsub) { _bUnsub(); _bUnsub=null; }
-  document.getElementById("battle-screen").style.display = "none";
-  document.getElementById("app").style.display = "flex";
+  document.getElementById("vote-modal").style.display = "none";
   renderBracket();
 }
-document.getElementById("btn-back").addEventListener("click", closeBattle);
+document.getElementById("vote-close").addEventListener("click", closeBattle);
 document.getElementById("btn-done").addEventListener("click", closeBattle);
 </script>
 </body>
