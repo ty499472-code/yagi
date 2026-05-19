@@ -753,7 +753,7 @@ async function renderBracket() {
   t.pairs.forEach((pair, pi) => {
     const pA = pm[pair.a], pB = pm[pair.b];
     if (!pA||!pB) return;
-    const winnerVotes = t.winners[pi] || {};
+    const winnerVotes = t.winners?.["m"+pi] || {};
     const vA = Object.values(winnerVotes).filter(v=>v===pair.a).length;
     const vB = Object.values(winnerVotes).filter(v=>v===pair.b).length;
     const decided = vA>=2 || vB>=2; // 2票で確定（A+B両方または同一2票）
@@ -842,7 +842,7 @@ async function openBattle(t, pi, pm) {
   if (_bUnsub) _bUnsub();
   _bUnsub = onSnapshot(doc(db,"tournament","current"), snap => {
     if (!snap.exists()) return;
-    renderVoteStatus(snap.data().winners?.[pi] || {}, snap.data());
+    renderVoteStatus(snap.data().winners?.["m"+pi] || {}, snap.data());
   });
 }
 
@@ -965,11 +965,12 @@ function renderVoteStatus(winnerVotes, tData) {
 
 async function castWinnerVote(winnerId) {
   const { pi } = _bState;
+  const key = "m" + pi; // Firestoreはオブジェクトキーを文字列で扱う
   const tRef = doc(db,"tournament","current");
   const td = (await getDoc(tRef)).data();
   if (!td.winners) td.winners = {};
-  if (!td.winners[pi]) td.winners[pi] = {};
-  td.winners[pi][DEV] = winnerId;
+  if (!td.winners[key]) td.winners[key] = {};
+  td.winners[key][DEV] = winnerId;
   await updateDoc(tRef, { winners: td.winners });
 }
 
