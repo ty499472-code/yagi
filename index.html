@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GymBuddy</title>
+<title>顔面トーナメント</title>
 <style>
 :root{
   --bg:#0c0e11;--bg2:#141820;--bg3:#1c2230;--bg4:#242c3a;
@@ -210,7 +210,7 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
 
 <!-- DEVICE PICKER -->
 <div id="device-picker">
-  <div class="dp-logo">Gym<span>Buddy</span></div>
+  <div class="dp-logo">顔面<span>トーナメント</span></div>
   <div class="dp-sub">このデバイスはどちらですか？<br>一度選ぶと固定されます</div>
   <div class="dp-row">
     <button class="dp-btn"   id="pick-a">A<span>デバイスA</span></button>
@@ -222,8 +222,9 @@ input[type=range]{width:100%;accent-color:var(--c1);cursor:pointer}
 <!-- APP -->
 <div id="app">
   <div class="header">
-    <div class="logo">Gym<span>Buddy</span></div>
+    <div class="logo">顔面<span>トーナメント</span></div>
     <div class="dev-badge" id="dev-badge"></div>
+    <button id="btn-logout" style="display:none;background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;transition:all .2s">ログアウト</button>
   </div>
   <div class="tabs">
     <button class="tab-btn active" data-tab="chat">💬 チャット</button>
@@ -441,6 +442,16 @@ function boot() {
   const badge = document.getElementById("dev-badge");
   badge.textContent = "デバイス " + DEV;
   badge.className = "dev-badge dev-" + DEV.toLowerCase();
+  const logoutBtn = document.getElementById("btn-logout");
+  if (DEV === "A") {
+    logoutBtn.style.display = "block";
+    logoutBtn.addEventListener("click", () => {
+      if (confirm("このデバイスからログアウトしますか？")) {
+        localStorage.removeItem("gymbuddy_device");
+        location.reload();
+      }
+    });
+  }
   initChat();
   showTab("chat");
 }
